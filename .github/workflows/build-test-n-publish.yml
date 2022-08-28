@@ -659,7 +659,7 @@ jobs:
 
     - name: Smoke-test the installed library
       run: >-
-        mock -r ${{ matrix.mock-chroot }}--shell "python3 -c
+        mock -r ${{ matrix.mock-chroot }} --shell "python3 -c
         'from pylibsshext.session import Session; print(Session())'"
 
     - name: Store RPM and SRPM as artifacts
