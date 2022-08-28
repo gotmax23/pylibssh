@@ -640,7 +640,7 @@ jobs:
         path: packaging/rpm/
 
     - name: Install mock and rpmlint
-      run: sudo dnf install -y mock mock-core-configs /usr/bin/rpmlint /usr/bin/spectool
+      run: sudo dnf install -y mock mock-core-configs /usr/bin/rpmlint /usr/bin/spectool /usr/bin/unbuffer
 
     - name: rpmlint
       run: rpmlint python-ansible-pylibssh.spec
@@ -653,9 +653,9 @@ jobs:
     - name: mock build
       # --isolation=simple is necessary, as this is running in a container
       run: >-
-        mock -r ${{ matrix.mock-chroot }}
+        unbuffer mock -r ${{ matrix.mock-chroot }} --enable-network -N --isolation=simple
         --define 'upstream_version ${{ needs.pre-setup.outputs.dist_version }}'
-        --spec python-ansible-pylibssh.spec --source . -N --postinstall --isolation=simple
+        --spec python-ansible-pylibssh.spec --source .
 
     - name: Smoke-test the installed library
       run: >-
