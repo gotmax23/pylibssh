@@ -152,6 +152,7 @@ jobs:
         print('::set-output name=dist_version::{ver}'.format(ver=ver))
 
   build-bin-macos:
+    if: false
     name: 🏗 macOS 📦 for 🐍 ${{ matrix.python-version }}
     needs:
     - pre-setup
@@ -312,6 +313,7 @@ jobs:
         retention-days: 4
 
   build-bin-manylinux:
+    if: false
     name: >-
       🏗 manylinux${{ matrix.manylinux-year-target
       }}-${{ matrix.manylinux-image-target.arch
@@ -800,6 +802,7 @@ jobs:
           ~/rpmbuild/RPMS/
 
   test-matrix:
+    if: false
     name: >-
       Test 🐍
       ${{ matrix.python-version }}
@@ -912,6 +915,7 @@ jobs:
         file: .test-results/pytest/cov.xml
 
   dist-meta:
+    if: false
     name: Verify 🐍📦 metadata
     needs:
     - build-bin-macos
@@ -978,7 +982,7 @@ jobs:
       run: python -m tox -p auto --parallel-live -vvvv
 
   check:  # This job does nothing and is only used for the branch protection
-    if: always()
+    if: false
 
     needs:
     - dist-meta
@@ -998,8 +1002,7 @@ jobs:
     - check
     - pre-setup  # transitive, for accessing settings
     if: >-
-      fromJSON(needs.pre-setup.outputs.is_untagged_devel) ||
-      fromJSON(needs.pre-setup.outputs.is_tagged)
+      false
     runs-on: ubuntu-latest
 
     steps:
@@ -1028,8 +1031,7 @@ jobs:
     - check
     - pre-setup  # transitive, for accessing settings
     if: >-
-      fromJSON(needs.pre-setup.outputs.is_untagged_devel) ||
-      fromJSON(needs.pre-setup.outputs.is_tagged)
+      false
     runs-on: ubuntu-latest
 
     steps:
