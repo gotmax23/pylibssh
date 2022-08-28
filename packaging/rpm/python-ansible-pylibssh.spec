@@ -19,7 +19,6 @@ URL:     https://github.com/ansible/pylibssh
 Source0: %{pypi_source}
 Source1: %{pypi_source expandvars 0.7.0}
 # RHEL or CentOS:
-%if 0%{?rhel}
 Source2: %{pypi_source build 0.3.1.post1}
 Source3: %{pypi_source Cython 0.29.23}
 Source4: %{pypi_source packaging 20.9}
@@ -31,11 +30,9 @@ Source9: %{pypi_source pep517 0.10.0}
 Source10: %{pypi_source pip 21.1.1}
 Source11: %{pypi_source pyparsing 2.4.7}
 # RHEL specifically, not CentOS:
-%if 0%{?centos} == 0
 Source12: %{pypi_source importlib_metadata 4.0.1}
 Source13: %{pypi_source zipp 3.4.1}
 Source14: %{pypi_source typing_extensions 3.10.0.0}
-%endif
 Source15: %{pypi_source pytest 6.2.4}
 Source16: %{pypi_source pytest-cov 2.12.1}
 Source17: %{pypi_source pytest-forked 1.3.0}
@@ -45,7 +42,6 @@ Source20: %{pypi_source attrs 20.3.0}
 Source21: %{pypi_source pluggy 0.13.1}
 Source22: %{pypi_source py 1.10.0}
 Source23: %{pypi_source coverage 5.5}
-%endif
 
 # Test dependencies:
 # keygen?
