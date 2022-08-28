@@ -609,197 +609,63 @@ jobs:
         retention-days: 4
 
   build-rpms:
-    name: ${{ matrix.target-container.tag }}
+    name: ${{ matrix.mock-chroot }}
     needs:
     - build-src
     - pre-setup  # transitive, for accessing settings
     strategy:
       matrix:
-        target-container:
-        - tag: fedora:35
-        - tag: fedora:36
-        - tag: centos/centos:stream8
-          registry: quay.io
-        - tag: ubi8/ubi:8.3
-          registry: registry.access.redhat.com
-        - tag: ubi8/ubi:8.4
-          registry: registry.access.redhat.com
-        - tag: ubi8/ubi:8.5
-          registry: registry.access.redhat.com
-        - tag: ubi8/ubi:8.6
-          registry: registry.access.redhat.com
-        # - tag: ubi9/ubi:9.0.0
-        #   registry: registry.access.redhat.com
-
-    runs-on: ubuntu-latest
+        mock-chroot:
+        - fedora-35-x86_64
+        - fedora-36-x86_64
+        - fedora-37-x86_64
+        - fedora-rawhide-x86_64
+        - centos-stream+epel-next-8-x86_64
+        # - centos-stream+epel-next-9
     container:
-      # NOTE: GHA has poor support for concat which is why I resorted to
-      # NOTE: using this ugly ternary syntax
-      image: >-
-        ${{
-          matrix.target-container.registry
-          && matrix.target-container.registry
-          || ''
-        }}${{
-          matrix.target-container.registry
-          && '/'
-          || ''
-        }}${{
-          matrix.target-container.tag
-        }}
-
+      image: registry.fedoraproject.org/fedora:latest
+      options: "--privileged"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packaging/rpm/
     steps:
-    - name: Produce artifact name
-      id: distribution-meta
-      run: |
-        dist_tag=$(rpm --eval '%{?dist}')
-        echo "::set-output name=dist-tag::${dist_tag}"
-
-    - name: Enable EPEL repository
-      if: contains(matrix.target-container.tag, 'centos')
-      run: dnf install --assumeyes epel-release
-
-    - name: Install build tooling
-      run: >-
-        dnf install
-        --assumeyes
-        dnf-plugins-core
-        rpm-build
-        ${{
-            !contains(matrix.target-container.tag, 'ubi')
-            && 'rpmdevtools rpmlint'
-            || ''
-        }}
-
-    - name: Create rpmbuild directory structure on a community distro
-      if: >-
-        !contains(matrix.target-container.tag, 'ubi')
-      run: rpmdev-setuptree
-    - name: Create rpmbuild directory structure on RHEL
-      if: contains(matrix.target-container.tag, 'ubi')
-      run: mkdir -pv ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-
     - name: Grab the source from Git
       uses: actions/checkout@v3.0.2
 
-    - name: Set an SCM version in the spec
-      run: >-
-        sed -i
-        "s#^\(Version:\s\+\).*#\1${{ needs.pre-setup.outputs.dist_version }}#"
-        packaging/rpm/ansible-pylibssh.spec
-
-    - name: Download all the dists  # because `rpmlint` executes the spec file
+    - name: Download all the dists
       uses: actions/download-artifact@v3
       with:
         name: python-package-distributions
-        path: dist/
+        path: packaging/rpm/
 
-    - name: Lint the RPM spec file
-      if: >-
-        !contains(matrix.target-container.tag, 'ubi')
-      run: rpmlint packaging/rpm/ansible-pylibssh.spec
+    - name: Install mock and rpmlint
+      run: sudo dnf install -y mock mock-core-configs /usr/bin/rpmlint /usr/bin/spectool
 
-    - name: Copy sdist to the sources dir
+    - name: rpmlint
+      run: rpmlint python-ansible-pylibssh.spec
+
+    - name: Download sources
       run: >-
-        cp -v
-        dist/ansible-pylibssh-${{ needs.pre-setup.outputs.dist_version }}.tar.gz
-        ~/rpmbuild/SOURCES/
+        spectool -g --define 'upstream_version ${{ needs.pre-setup.outputs.dist_version }}'
+        python-ansible-pylibssh.spec
 
-    - name: Install static test dependencies missing from UBI
-      if: contains(matrix.target-container.tag, 'ubi')
+    - name: mock build
+      # --isolation=simple is necessary, as this is running in a container
       run: >-
-        rpm
-        -ivh
-        --nodeps
-        https://vault.centos.org/8.4.2105/BaseOS/x86_64/os/Packages/openssh-8.0p1-6${{ steps.distribution-meta.outputs.dist-tag }}_4.2.x86_64.rpm
-        https://rpmfind.net/linux/epel/8/Everything/x86_64/Packages/p/python3-pytest-cov-2.6.0-1${{ steps.distribution-meta.outputs.dist-tag }}.noarch.rpm
-        https://rpmfind.net/linux/epel/8/Everything/x86_64/Packages/p/python3-pytest-forked-1.0.2-1${{ steps.distribution-meta.outputs.dist-tag }}.noarch.rpm
-        https://rpmfind.net/linux/epel/8/Everything/x86_64/Packages/p/python3-pytest-xdist-1.24.1-1${{ steps.distribution-meta.outputs.dist-tag }}.noarch.rpm
-        https://rpmfind.net/linux/epel/8/Everything/x86_64/Packages/p/python3-tox-3.4.0-2${{ steps.distribution-meta.outputs.dist-tag }}.noarch.rpm
-        https://rpmfind.net/linux/epel/8/Everything/x86_64/Packages/p/python3-execnet-1.7.1-1${{ steps.distribution-meta.outputs.dist-tag }}.noarch.rpm
-        https://rpmfind.net/linux/epel/8/Everything/x86_64/Packages/p/python3-toml-0.10.0-3${{ steps.distribution-meta.outputs.dist-tag }}.noarch.rpm
-        https://rpmfind.net/linux/centos/8-stream/AppStream/x86_64/os/Packages/python3-coverage-4.5.1-7${{ steps.distribution-meta.outputs.dist-tag }}.x86_64.rpm
-        https://rpmfind.net/linux/epel/8/Everything/x86_64/Packages/p/python3-apipkg-1.5-6${{ steps.distribution-meta.outputs.dist-tag }}.noarch.rpm
-
-    - name: Install static build requirements
-      run: dnf builddep --assumeyes --spec packaging/rpm/ansible-pylibssh.spec
-
-    - name: Fetch sources and patches on a community distro
-      if: >-
-        !contains(matrix.target-container.tag, 'ubi')
-      run: spectool --all --get-files --sourcedir packaging/rpm/ansible-pylibssh.spec
-
-    - name: Resolve and install dynamic build deps and build an SRPM on Fedora
-      # Ref: https://github.com/rpm-software-management/rpm/commit/58dcfdd
-      if: contains(matrix.target-container.tag, 'fedora')
-      run: |
-        while :
-        do
-          set +e
-          rpmbuild -br packaging/rpm/ansible-pylibssh.spec
-          rc="$?"
-          [ "${rc}" -eq 0 ] && break
-          [ "${rc}" -ne 11 ] && exit "${rc}"
-          set -e
-          dnf builddep --assumeyes \
-            $HOME/rpmbuild/SRPMS/python-ansible-pylibssh-${{
-                needs.pre-setup.outputs.dist_version
-            }}-1${{
-              steps.distribution-meta.outputs.dist-tag
-            }}.buildreqs.nosrc.rpm
-        done
-
-    - name: Build an SRPM on RHELish
-      if: >-
-        !contains(matrix.target-container.tag, 'fedora')
-      run: >-
-        rpmbuild
-        ${{
-            contains(matrix.target-container.tag, 'ubi')
-            && '--undefine=_disable_source_fetch'
-            || ''
-        }}
-        -bs
-        packaging/rpm/ansible-pylibssh.spec
-
-    - name: Build binary RPMs
-      run: >-
-        rpmbuild
-        --rebuild
-        $HOME/rpmbuild/SRPMS/python-ansible-pylibssh-${{
-            needs.pre-setup.outputs.dist_version
-        }}-1${{
-          steps.distribution-meta.outputs.dist-tag
-        }}.src.rpm
-    - name: Install the packaged binary RPM on the system
-      run: >-
-        dnf
-        install
-        --assumeyes
-        $HOME/rpmbuild/RPMS/x86_64/python3-ansible-pylibssh-${{
-            needs.pre-setup.outputs.dist_version
-        }}-1${{
-          steps.distribution-meta.outputs.dist-tag
-        }}.x86_64.rpm
+        mock -r ${{ matrix.mock-chroot }}
+        --define 'upstream_version ${{ needs.pre-setup.outputs.dist_version }}'
+        --spec python-ansible-pylibssh.spec --source . -N --postinstall --isolation=simple
 
     - name: Smoke-test the installed library
       run: >-
-        python3 -c
-        'from pylibsshext.session import Session; print(Session())'
-    - name: Produce artifact name
-      id: artifact-name
-      run: >-
-        normalized_container_id=$(
-            echo '${{ matrix.target-container.tag }}' | sed 's#[.\/:]#--#g'
-        );
-        echo "::set-output name=artifact-id::${normalized_container_id}"
+        mock -r ${{ matrix.mock-chroot }}--shell "python3 -c
+        'from pylibsshext.session import Session; print(Session())'"
+
     - name: Store RPM and SRPM as artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ steps.artifact-name.outputs.artifact-id }}--srpm-n-rpm
-        path: |
-          ~/rpmbuild/SRPMS/
-          ~/rpmbuild/RPMS/
+        path: /var/lib/mock/results/${{ matrix.mock-chroot }}.rpm
 
   test-matrix:
     if: false

@@ -1,13 +1,5 @@
 %global pypi_name ansible-pylibssh
 
-# NOTE: The target version may be set dynamically via
-# NOTE: rpmbuild --define "upstream_version 0.2.1.dev125+g0b5bde0"
-%global upstream_version_fallback %(ls -t dist/%{pypi_name}-*.tar.gz | head -n 1 | sed 's#^dist\\/%{pypi_name}-\\(.*\\)\\.tar\\.gz$#\\1#')
-# If "upstream_version" macro is unset, use the fallback defined above:
-%if "%{!?upstream_version:UNSET}" == "UNSET"
-%global upstream_version %{upstream_version_fallback}
-%endif
-
 %global python_importable_name pylibsshext
 # RHEL or CentOS:
 %if 0%{?rhel}
@@ -18,12 +10,11 @@
 %global buildroot_site_packages "%{buildroot}%{python3_sitearch}"
 
 Name:    python-%{pypi_name}
-Version: %{upstream_version}
+Version: %{?upstream_version}%{!?upstream_version:0}
 Release: 1%{?dist}
 Summary: Python bindings for libssh client specific to Ansible use case
 
-#BuildRoot: %%{_tmppath}/%%{name}-%%{version}-%%{release}-buildroot
-License: LGPL-2+
+License: LGPLv2+
 URL:     https://github.com/ansible/pylibssh
 Source0: %{pypi_source}
 Source1: %{pypi_source expandvars 0.7.0}
